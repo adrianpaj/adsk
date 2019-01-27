@@ -1,0 +1,68 @@
+---
+- hosts: application_nodes
+  become: yes
+  vars:
+    jar_location: application/car_rental.jar
+    app_location: /opt/car_rental.jar
+    app_user: carrental
+    influxdb_ip: 172.31.16.130
+  tasks:
+    - yum:
+        name: java-1.8.0-openjdk
+        state: present
+    - file:
+        path: /opt/carrental
+        state: directory
+    - copy:
+        src: "{{jar_location}}"
+        dest: "{{app_location}}"
+    - user:
+        name: "{{app_user}}"
+    - file:
+        path: /etc/systemd/system
+        state: directory
+    - template:
+        src: application/car.service
+        dest: /etc/systemd/system/car.service
+    - systemd:
+        name: "car.service"
+        state: restarted
+        enabled: yes
+    - yum:
+        name: https://dl.influxdata.com/telegraf/releases/telegraf-1.8.3-1.x86_64.rpm
+        state: present
+    - template:
+        src: templates/telegraf.conf
+        dest: /etc/telegraf/telegraf.conf
+    - service:
+        name: telegraf
+        state: restarted
+
+- hosts: nginx_nodes
+  become: yes
+  vars:
+    nginx: 3.121.229.246
+    app_private_ip: 172.31.29.215
+  tasks:
+    - yum:
+        name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+        state: present
+    - yum:
+        name: nginx
+        state: present
+    - template:
+        src: templates/nginx.conf
+        dest: /etc/nginx/conf.d/nginx.conf
+    - service:
+        name: nginx
+        state: restarted
+
+- hosts: stats_nodes
+  become: yes
+  tasks:
+  - yum:
+      name: https://dl.influxdata.com/influxdb/releases/influxdb-1.7.1.x86_64.rpm
+      state: present
+  - service:
+      name: influxdb
+      state: restarted
